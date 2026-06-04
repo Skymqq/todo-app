@@ -1,22 +1,11 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
-import TodoList from "@/components/todo-list";
+import TodoApp from "@/components/todo-app";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
+export default function Home() {
   return (
     <main>
-      <TodoList userId={user.id} />
+      <TodoApp />
     </main>
   );
 }

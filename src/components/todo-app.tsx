@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 
 type Todo = {
   id: number;
@@ -11,23 +11,39 @@ type Todo = {
   created_at: string;
 };
 
-export default function TodoList({ userId }: { userId: string }) {
+export default function TodoApp() {
+  const [userId, setUserId] = useState<string | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      setUserId(user.id);
+    });
+  }, [router, supabase]);
 
   const fetchTodos = useCallback(async () => {
     const { data } = await supabase
       .from("todos")
       .select("*")
       .order("created_at", { ascending: false });
-    if (data) setTodos(data);
+    if (data) {
+      setTodos(data);
+      setLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
+    if (!userId) return;
     fetchTodos();
 
     const channel = supabase
@@ -66,7 +82,7 @@ export default function TodoList({ userId }: { userId: string }) {
   }, [supabase, userId, fetchTodos]);
 
   async function addTodo() {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !userId) return;
     await supabase.from("todos").insert({
       title: newTitle.trim(),
       user_id: userId,
@@ -97,7 +113,14 @@ export default function TodoList({ userId }: { userId: string }) {
   async function signOut() {
     await supabase.auth.signOut();
     router.push("/login");
-    router.refresh();
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
   }
 
   return (

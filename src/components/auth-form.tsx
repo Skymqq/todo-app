@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
@@ -9,31 +9,50 @@ export default function AuthForm() {
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) router.push("/");
+    });
+  }, [router, supabase]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    const action = isSignUp
-      ? supabase.auth.signUp({ email, password })
-      : supabase.auth.signInWithPassword({ email, password });
-
-    const { error } = await action;
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    setLoading(true);
 
     if (isSignUp) {
-      setError("Check your email to confirm sign up!");
-      return;
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      const { error: signInError } =
+        await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError("Account created. Please check your email to confirm.");
+        setLoading(false);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      router.push("/");
+      router.refresh();
     }
-
-    router.push("/");
-    router.refresh();
   }
 
   return (
@@ -73,22 +92,15 @@ export default function AuthForm() {
         </div>
 
         {error && (
-          <p
-            className={`mb-4 text-sm ${
-              isSignUp && !error.includes("Check")
-                ? "text-green-600"
-                : "text-red-600"
-            }`}
-          >
-            {error}
-          </p>
+          <p className="mb-4 text-sm text-red-600">{error}</p>
         )}
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          disabled={loading}
+          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSignUp ? "Sign Up" : "Sign In"}
+          {loading ? "Please wait..." : isSignUp ? "Sign Up" : "Sign In"}
         </button>
 
         <p className="mt-4 text-center text-sm text-gray-600">

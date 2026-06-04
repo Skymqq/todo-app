@@ -1,50 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    return NextResponse.next({ request });
-  }
-
-  let supabaseResponse = NextResponse.next({ request });
-
-  try {
-    const supabase = createServerClient(url, key, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value, options } of cookiesToSet) {
-            supabaseResponse.cookies.set(name, value, options);
-          }
-        },
-      },
-    });
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user && !request.nextUrl.pathname.startsWith("/login")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
-    }
-
-    if (user && request.nextUrl.pathname.startsWith("/login")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-  } catch {
-    return NextResponse.next({ request });
-  }
-
-  return supabaseResponse;
+  return NextResponse.next({ request });
 }
 
 export const config = {

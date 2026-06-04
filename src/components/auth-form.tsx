@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export default function AuthForm() {
   const [email, setEmail] = useState("");
@@ -11,28 +12,32 @@ export default function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef<SupabaseClient | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.current = createClient();
+    supabase.current.auth.getUser().then(({ data: { user } }) => {
       if (user) router.push("/");
     });
-  }, [router, supabase]);
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    const sb = supabase.current;
+    if (!sb) return;
+
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await sb.auth.signUp({ email, password });
       if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
       const { error: signInError } =
-        await supabase.auth.signInWithPassword({ email, password });
+        await sb.auth.signInWithPassword({ email, password });
       if (signInError) {
         setError("Account created. Please check your email to confirm.");
         setLoading(false);
@@ -41,7 +46,7 @@ export default function AuthForm() {
       router.push("/");
       router.refresh();
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await sb.auth.signInWithPassword({
         email,
         password,
       });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Todo = {
   id: number;
@@ -19,20 +20,23 @@ export default function TodoApp() {
   const [editTitle, setEditTitle] = useState("");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef<SupabaseClient | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.current = createClient();
+    const sb = supabase.current;
+    sb.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
         router.push("/login");
         return;
       }
       setUserId(user.id);
     });
-  }, [router, supabase]);
+  }, [router]);
 
   const fetchTodos = useCallback(async () => {
-    const { data } = await supabase
+    if (!supabase.current) return;
+    const { data } = await supabase.current
       .from("todos")
       .select("*")
       .order("created_at", { ascending: false });
@@ -40,13 +44,14 @@ export default function TodoApp() {
       setTodos(data);
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !supabase.current) return;
+    const sb = supabase.current;
     fetchTodos();
 
-    const channel = supabase
+    const channel = sb
       .channel("todos-changes")
       .on(
         "postgres_changes",
@@ -77,13 +82,13 @@ export default function TodoApp() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      sb.removeChannel(channel);
     };
-  }, [supabase, userId, fetchTodos]);
+  }, [userId, fetchTodos]);
 
   async function addTodo() {
-    if (!newTitle.trim() || !userId) return;
-    await supabase.from("todos").insert({
+    if (!newTitle.trim() || !userId || !supabase.current) return;
+    await supabase.current.from("todos").insert({
       title: newTitle.trim(),
       user_id: userId,
     });
@@ -91,19 +96,21 @@ export default function TodoApp() {
   }
 
   async function toggleTodo(id: number, isComplete: boolean) {
-    await supabase
+    if (!supabase.current) return;
+    await supabase.current
       .from("todos")
       .update({ is_complete: !isComplete })
       .eq("id", id);
   }
 
   async function deleteTodo(id: number) {
-    await supabase.from("todos").delete().eq("id", id);
+    if (!supabase.current) return;
+    await supabase.current.from("todos").delete().eq("id", id);
   }
 
   async function saveEdit(id: number) {
-    if (!editTitle.trim()) return;
-    await supabase
+    if (!editTitle.trim() || !supabase.current) return;
+    await supabase.current
       .from("todos")
       .update({ title: editTitle.trim() })
       .eq("id", id);
@@ -111,7 +118,8 @@ export default function TodoApp() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    if (!supabase.current) return;
+    await supabase.current.auth.signOut();
     router.push("/login");
   }
 
